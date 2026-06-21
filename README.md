@@ -1,91 +1,174 @@
-# 🏗 Scaffold-ETH 2
+# Децентрализованная система голосования
 
-<h4 align="center">
-  <a href="https://docs.scaffoldeth.io">Documentation</a> |
-  <a href="https://scaffoldeth.io">Website</a>
-</h4>
+Система децентрализованного голосования на базе Scaffold-ETH 2 с протоколом **Commit-Reveal**.
 
-🧪 An open-source, up-to-date toolkit for building decentralized applications (dapps) on the Ethereum blockchain. It's designed to make it easier for developers to create and deploy smart contracts and build user interfaces that interact with those contracts.
+## Как это работает
 
-> [!NOTE]
-> 🤖 Scaffold-ETH 2 is AI-ready! It has everything agents need to build on Ethereum. Check `.agents/`, `.claude/`, `.opencode` or `.cursor/` for more info.
+Протокол Commit-Reveal обеспечивает **секретность голосования** — никто не может узнать за кого голосует каждый участник, пока не завершится фаза голосования.
 
-⚙️ Built using NextJS, RainbowKit, Foundry/Hardhat, Wagmi, Viem, and Typescript.
+### Этапы работы
 
-- ✅ **Contract Hot Reload**: Your frontend auto-adapts to your smart contract as you edit it.
-- 🪝 **[Custom hooks](https://docs.scaffoldeth.io/hooks/)**: Collection of React hooks wrapper around [wagmi](https://wagmi.sh/) to simplify interactions with smart contracts with typescript autocompletion.
-- 🧱 [**Components**](https://docs.scaffoldeth.io/components/): Collection of common web3 components to quickly build your frontend.
-- 🔥 **Burner Wallet & Local Faucet**: Quickly test your application with a burner wallet and local faucet.
-- 🔐 **Integration with Wallet Providers**: Connect to different wallet providers and interact with the Ethereum network.
+1. **Создание голосования** — администратор создаёт голосование с названием, временными рамками и обязательным депозитом
+2. **Регистрация** — админ добавляет избирателей через панель управления конкретного голосования
+3. **Голосование (Commit)** — избиратели отправляют `keccak256(candidateId, salt)` + депозит. Salt автоматически генерируется и сохраняется в localStorage
+4. **Раскрытие (Reveal)** — автоматически при окончании голосования. Контракт проверяет хеш и возвращает депозит
+5. **Финализация** — подсчёт голосов и объявление победителя
+6. **Slash** — если избиратель не раскрыл свой голос, его депозит сжигается (вызывается кем угодно)
 
-![Debug Contracts tab](https://github.com/scaffold-eth/scaffold-eth-2/assets/55535804/b237af0c-5027-4849-a5c1-2e31495cccb1)
+### Контракт
 
-## Requirements
+| Контракт | Описание |
+|----------|----------|
+| `Voting.sol` | Единый контракт: создание голосований, per-proposal регистрация избирателей, commit/reveal, подсчёт голосов |
 
-Before you begin, you need to install the following tools:
+## Запуск
 
-- [Node (>= v22.10.0)](https://nodejs.org/en/download/)
-- Yarn ([v1](https://classic.yarnpkg.com/en/docs/install/) or [v2+](https://yarnpkg.com/getting-started/install))
-- [Git](https://git-scm.com/downloads)
+### Предварительные требования
 
-## Quickstart
+- Node.js >= 18
+- Yarn 4
 
-To get started with Scaffold-ETH 2, follow the steps below:
+### 1. Установка зависимостей
 
-1. Install the latest version of Scaffold-ETH 2
-
-```
-npx create-eth@latest
+```bash
+yarn install
 ```
 
-This command will install all the necessary packages and dependencies, so it might take a while.
+### 2. Запуск локальной блокчейн сети
 
-> [!NOTE]
-> You can also initialize your project with one of our extensions to add specific features or starter-kits. Learn more in our [extensions documentation](https://docs.scaffoldeth.io/extensions/).
-
-2. Run a local network in the first terminal:
-
-```
+```bash
 yarn chain
 ```
 
-This command starts a local Ethereum network that runs on your local machine and can be used for testing and development. Learn how to [customize your network configuration](https://docs.scaffoldeth.io/quick-start/environment#1-initialize-a-local-blockchain).
+Запустит Hardhat Node на `http://127.0.0.1:8545`
 
-3. On a second terminal, deploy the test contract:
+### 3. Деплой контрактов
 
-```
+В отдельном терминале:
+
+```bash
 yarn deploy
 ```
 
-This command deploys a test smart contract to the local network. You can find more information about how to customize your contract and deployment script in our [documentation](https://docs.scaffoldeth.io/quick-start/environment#2-deploy-your-smart-contract).
+После деплоя файл `packages/nextjs/contracts/deployedContracts.ts` автоматически обновится с адресами контрактов.
 
-4. On a third terminal, start your NextJS app:
+### 4. Запуск фронтенда
 
-```
+```bash
 yarn start
 ```
 
-Visit your app on: `http://localhost:3000`. You can interact with your smart contract using the `Debug Contracts` page. You can tweak the app config in `packages/nextjs/scaffold.config.ts`.
+Откройте `http://localhost:3000`
 
-**What's next**:
+## Как пользоваться
 
-Visit the [What's next section of our docs](https://docs.scaffoldeth.io/quick-start/environment#whats-next) to learn how to:
+### Шаг 1: Подключение кошелька
 
-- Edit your smart contracts
-- Edit your deployment scripts
-- Customize your frontend
-- Edit the app config
-- Writing and running tests
-- [Setting up external services and API keys](https://docs.scaffoldeth.io/deploying/deploy-smart-contracts#configuration-of-third-party-services-for-production-grade-apps)
+1. Откройте `http://localhost:3000`
+2. Burner wallet автоматически подключается к локальной сети Hardhat
+3. Используйте **Faucet** для получения тестовых ETH (кнопка в шапке)
 
-## Documentation
+### Шаг 2: Создание голосования
 
-Visit our [docs](https://docs.scaffoldeth.io) to learn all the technical details and guides of Scaffold-ETH 2.
+1. Перейдите на страницу `/voting`
+2. Нажмите "Создать"
+3. Заполните форму:
+   - **Название** — тема голосования
+   - **Регистрация** — время на регистрацию избирателей (в секундах)
+   - **Голосование** — время на голосование (в секундах)
+   - **Депозит** — сумма ETH, которую избиратель должен внести
+   - **Кандидаты** — список кандидатов (мин. 2)
+4. Нажмите "Создать голосование"
 
-To know more about its features, check out our [website](https://scaffoldeth.io).
+### Шаг 3: Регистрация избирателей
 
-## Contributing to Scaffold-ETH 2
+После создания голосования:
 
-We welcome contributions to Scaffold-ETH 2!
+1. На странице `/voting` найдите своё голосование
+2. Нажмите "Настройки" (появляется только для создателя)
+3. Введите адрес кошелька избирателя
+4. Нажмите "Добавить"
+5. Повторите для каждого избирателя
 
-Please see [CONTRIBUTING.MD](https://github.com/scaffold-eth/scaffold-eth-2/blob/main/CONTRIBUTING.md) for more information and guidelines for contributing to Scaffold-ETH 2.
+### Шаг 4: Голосование
+
+1. Когда регистрация завершится, нажмите "Начать голосование"
+2. Избиратели выбирают кандидата из списка
+3. Указывают размер депозита
+4. Нажимают "Проголосовать"
+5. Salt автоматически генерируется и сохраняется в браузере
+
+### Шаг 5: Раскрытие голоса
+
+Раскрытие происходит **автоматически** при окончании голосования:
+
+1. Если браузер открыт — голос раскроется автоматически
+2. Депозит будет возвращён на кошелёк
+3. Если браузер закрыт — депозит можно будет слэшить через `slashNoReveal`
+
+### Шаг 6: Просмотр результатов
+
+После окончания голосования:
+
+1. Нажмите "Показать результаты"
+2. Победитель отмечен значком 🏆
+3. Голоса отображаются в виде прогресс-баров с процентами
+
+## Структура проекта
+
+```
+packages/
+├── hardhat/
+│   ├── contracts/
+│   │   └── Voting.sol          # Единый контракт голосования
+│   ├── deploy/
+│   │   └── 00_deploy_voting.ts # Скрипт деплоя (rocketh)
+│   └── test/
+│       └── VotingTest.ts       # Тесты
+└── nextjs/
+    ├── app/
+    │   ├── page.tsx            # Главная страница
+    │   ├── voting/
+    │   │   ├── page.tsx        # Страница голосований (2 таба)
+    │   │   └── _components/
+    │   │       ├── CreateProposalForm.tsx  # Форма создания
+    │   │       ├── ProposalCard.tsx        # Карточка голосования
+    │   │       └── AdminPanel.tsx          # Панель администратора
+    │   └── debug/              # Отладка контрактов
+    └── components/
+        └── Header.tsx          # Навигация
+```
+
+## Архитектура
+
+### Контракт Voting.sol
+
+Единый контракт, включающий:
+- **Создание голосований** — каждое голосование имеет своего админа, временные рамки и депозит
+- **Per-proposal регистрация** — избиратели регистрируются для конкретного голосования
+- **Auto-advance фаз** — фазы переключаются автоматически при наступлении дедлайнов
+- **Commit-Reveal** — хеш голоса + salt, затем раскрытие с возвратом депозита
+- **Slash** — кто угодно может вызвать `slashNoReveal` для нераскрывших голос
+
+### Фронтенд
+
+- **Auto-reveal** — при наступлении фазы Reveal голос раскрывается автоматически из localStorage
+- **Сохранение salt** — salt генерируется через `crypto.getRandomValues()` и сохраняется в `localStorage` по ключу `vote_{proposalId}_{address}`
+- **AdminPanel** — панель управления для создателя голосования (регистрация/отзыв избирателей, смена админа)
+
+## Тестирование
+
+```bash
+cd packages/hardhat
+yarn test
+```
+
+Тесты покрывают:
+- Деплой и инициализация
+- Создание голосования с кандидатами
+- Per-proposal регистрация избирателей
+- Commit фаза (валидный commit, двойной commit, недостаточный депозит)
+- Reveal фаза (валидный reveal, неверный salt)
+- Финализация и подсчёт голосов
+- Смена администратора
+- Slash за нераскрытие голоса
