@@ -82,6 +82,36 @@ yarn start
 <img width="1072" height="1245" alt="image" src="https://github.com/user-attachments/assets/73ef9250-2dfe-45f7-a270-5209ffb49fb9" />
 
 
+## Логика контракта
+
+Контракт `Voting.sol` — единый контракт для управления голосованиями с протоколом Commit-Reveal.
+
+**Структуры:** `Proposal` (голосование с фазами, дедлайнами, депозитом) и `Candidate` (кандидат со счётчиком голосов). **Маппинги:** хранят голосования, кандидатов, хеши commit, депозиты, флаги revealed/isVoter.
+
+**Фазы:** `Registration` → `Voting` → `Finalized`. Переключение автоматическое при наступлении дедлайна (`_autoAdvancePhase`).
+
+**Функции:**
+
+| Функция | Действие |
+|---------|----------|
+| `createProposal()` | Создаёт голосование, устанавливает депозит и дедлайны |
+| `registerVoter()` / `registerVoters()` | Регистрирует избирателей (только админ, фаза Registration) |
+| `revokeVoter()` | Отзывает регистрацию |
+| `addCandidate()` | Добавляет кандидата (фазы Registration/Voting) |
+| `commit()` | Принимает `keccak256(candidateId, salt)` + ETH-депозит |
+| `reveal()` | Проверяет хеш, засчитывает голос, возвращает депозит |
+| `finalizeProposal()` | Подсчёт голосов, определение победителя |
+| `slashNoReveal()` | Сжигает депозит нераскрывшего голоса (кем угодно после финализации) |
+
+**Commit-Reveal:**
+```
+commit(hash, deposit) → сохранение хеша + депозита
+reveal(candidateId, salt) → проверка keccak256, возврат депозита
+slashNoReveal() → депозит сжигается
+```
+
+**События:** `ProposalCreated`, `CommitMade`, `VoteRevealed`, `VoterSlashed`, `ProposalFinalized` и др.
+
 ## Структура проекта
 
 ```
@@ -114,7 +144,24 @@ cd packages/hardhat
 yarn test
 ```
 
-Покрывают: деплой, создание голосования, регистрацию избирателей, фазы commit/reveal, финализацию, смену админа и slash-механику.
+Файл `VotingTest.ts` содержит полный набор unit-тестов контракта `Voting.sol`. Тесты используют `loadFixture` для изоляции каждого сценария и `networkHelpers.time.increase` для перемещения времени между фазами.
+
+**Сценарии:**
+
+| Группа | Тест | Что проверяется |
+|--------|------|-----------------|
+| **Deployment** | nextProposalId == 1 | Корректная инициализация счётчика |
+| **Registration** | Регистрация избирателя | `isVoter` устанавливается в true |
+| | Отказ не-админу | `"Not admin"` при вызове от чужого адреса |
+| | Отказ незарегистрированному | `"Not registered voter"` при commit без регистрации |
+| **Commit** | Валидный commit | Принимает хеш + депозит, эмитит `CommitMade` |
+| | Двойной commit | `"Already committed"` при повторном вызове |
+| | Недостаточный депозит | `"Insufficient deposit"` при сумме ниже `depositRequired` |
+| **Reveal** | Валидный reveal | Проверяет хеш, засчитывает голос, эмитит `VoteRevealed` |
+| | Неверный salt | `"Invalid reveal"` при несовпадении хеша |
+| **Admin** | Смена админа | `proposal.admin` обновляется |
+| | Отказ не-админу | `"Not admin"` при попытке смены |
+| **Finalization** | Подсчёт голосов | `voteCount` кандидатов корректен после reveal |
 
 ## License
 
